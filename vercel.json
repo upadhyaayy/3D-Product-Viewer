@@ -1,7 +1,6 @@
 {
   "buildCommand": "",
   "outputDirectory": "",
-  "functions": {},
   "headers": [
     {
       "source": "/(.*)",
