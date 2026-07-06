@@ -1,0 +1,23 @@
+{
+  "name": "3d-product-configurator",
+  "version": "1.0.0",
+  "description": "Reusable 3D product configurator template using Three.js",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python -m http.server 8000",
+    "deploy": "vercel"
+  },
+  "keywords": [
+    "three.js",
+    "3d",
+    "configurator",
+    "product",
+    "customizer"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}
