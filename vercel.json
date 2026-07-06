@@ -1,6 +1,13 @@
 {
   "buildCommand": "",
   "outputDirectory": "",
+  "functions": {},
+  "env": [
+    {
+      "key": "NODE_ENV",
+      "value": "production"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

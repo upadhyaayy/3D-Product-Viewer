@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diamond Ring</title>
+  <!-- Product images stored in ./images/ folder: ring-front.jpg, ring-side.jpg, ring-top.jpg, ring-angle.jpg, ring-detail.jpg -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/loaders/RGBELoader.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #f5f5f5;
+      color: #111;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    #configuratorPage {
+      width: 100vw;
+      height: 100vh;
+      min-height: 100vh;
+      overflow: hidden;
+      background: #f5f5f5;
+    }
+
+    #configuratorPage.active {
+      display: flex !important;
+    }
+
+    .configurator-content {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .viewer-container {
+      flex: 1;
+      position: relative;
+      min-width: 0;
+      background: linear-gradient(135deg, #f8f8f8 0%, #eeeeee 100%);
+    }
+
+    #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .viewer-hint {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      font-size: 11px;
+      color: #666;
+      letter-spacing: 0.04em;
+      pointer-events: none;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(245, 245, 245, 0.75);
+      color: #111;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .options-panel {
+      width: min(380px, 100%);
+      padding: 24px;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+      border-left: 1px solid #e5e5e5;
+    }
+
+    .stacked-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .step-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #111;
+    }
+
+    .option-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr;
+    }
+
+    .option-button {
+      border: 1px solid #e5e5e5;
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      min-height: 48px;
+    }
+
+    .option-button:hover {
+      border-color: #111;
+    }
+
+    .option-button.active {
+      border-color: #111;
+      box-shadow: inset 0 0 0 1px #111;
+    }
+
+    .btn-primary {
+      margin-top: auto;
+      border: none;
+      border-radius: 999px;
+      background: #111;
+      color: white;
+      padding: 14px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+    }
+
+    .btn-primary:hover {
+      background: #333;
+    }
+
+    @media (max-width: 900px) {
+      .configurator-content {
+        flex-direction: column;
+      }
+
+      .viewer-container {
+        flex: 1 1 45vh;
+        min-height: 45vh;
+      }
+
+      .options-panel {
+        width: 100%;
+        max-height: 55vh;
+        border-left: none;
+        border-top: 1px solid #e5e5e5;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="configuratorPage" class="page active">
+    <div class="configurator-content">
+      <div class="viewer-container">
+        <canvas id="canvas"></canvas>
+        <div id="loadingOverlay" class="loading-overlay">Loading 3D Model...</div>
+        <div class="viewer-hint">Drag to rotate • Scroll to zoom</div>
+      </div>
+
+      <div class="options-panel">
+        <div class="stacked-section">
+          <div class="step-label">Stone Type</div>
+          <div class="option-grid" id="stoneTypeConfig"></div>
+        </div>
+
+        <div class="stacked-section">
+          <div class="step-label">Ring Finish</div>
+          <div class="option-grid" id="ringFinishConfig"></div>
+        </div>
+
+        <button class="btn-primary" onclick="handleAddToCart()">Add to Cart</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+
+  <script>
+    function makeOptions(containerId, variant, category, currentSelections, onSelectFn) {
+      const container = document.getElementById(containerId);
+      if (!container || !variant) return;
+
+      container.innerHTML = '';
+      variant.options.forEach(opt => {
+        const isActive = currentSelections.variant[category] === opt.name;
+        const btn = document.createElement('button');
+        btn.className = 'option-button' + (isActive ? ' active' : '');
+        btn.textContent = opt.name;
+        btn.style.cursor = 'pointer';
+        btn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onSelectFn(category, opt.name);
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    class ProductConfigurator {
+      constructor(config) {
+        this.config = config;
+        this.currentSelections = {
+          variant: { ...(config.defaults?.variant || {}) }
+        };
+        this.currentFinish = 'High Polish';
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.controls = null;
+        this.productMesh = null;
+        this.modelCache = new Map();
+      }
+
+      init() {
+        this.renderConfigurator();
+        this.updatePrice();
+        this.broadcastConfiguration();
+      }
+
+      setupScene() {
+        if (!window.THREE) return;
+
+        const container = document.getElementById('canvas');
+        let width = container.parentElement.clientWidth;
+        let height = container.parentElement.clientHeight;
+
+        if (width === 0 || height === 0) {
+          width = 800;
+          height = 600;
+        }
+
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0xf5f5f5);
+
+        this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        this.camera.position.set(0, 0, 3);
+
+        this.renderer = new THREE.WebGLRenderer({ canvas: container, antialias: false, alpha: false });
+        this.renderer.setSize(width, height);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.powerPreference = 'high-performance';
+        this.renderer.shadowMap.enabled = false;
+        this.needsRender = true;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        this.scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(5, 5, 5);
+        this.scene.add(dirLight);
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        fillLight.position.set(-5, 0, -5);
+        this.scene.add(fillLight);
+
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.autoRotate = false;
+        this.controls.enableDamping = false;
+        this.controls.enablePan = false;
+        this.controls.enableZoom = true;
+        this.controls.addEventListener('start', () => { this.needsRender = true; });
+        this.controls.addEventListener('change', () => { this.needsRender = true; });
+
+        this.autoRotateDirection = 1;
+        this.autoRotateSpeed = 0.0025;
+
+        new THREE.RGBELoader().load(
+          'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_08_1k.hdr',
+          texture => {
+            texture.mapping = THREE.EquirectangularReflectionMapping;
+            this.scene.environment = texture;
+            this.scene.background = new THREE.Color(0xffffff);
+          }
+        );
+
+        window.addEventListener('resize', () => this.onWindowResize());
+      }
+
+      isGemstoneMesh(child) {
+        const name = (child.name || '').toLowerCase();
+        return ['stone', 'diamond', 'gem', 'gemstone', 'jewel', 'crystal', 'rock'].some(token => name.includes(token));
+      }
+
+      getFinishRoughness() {
+        switch (this.currentFinish) {
+          case 'Satin':
+            return 0.3;
+          case 'Matte':
+            return 0.6;
+          default:
+            return 0.05;
+        }
+      }
+
+      applyMaterialSettings(child, roughnessOverride = null) {
+        if (!child.isMesh || !child.material) return;
+
+        const isGemstone = this.isGemstoneMesh(child);
+        let material;
+
+        if (isGemstone) {
+          material = new THREE.MeshPhysicalMaterial({
+            color: new THREE.Color(0xffffff),
+            metalness: 0,
+            roughness: 0.02,
+            transmission: 0.98,
+            thickness: 0.22,
+            ior: 2.4,
+            reflectivity: 1,
+            clearcoat: 0.8,
+            clearcoatRoughness: 0.04,
+            envMapIntensity: 1.8,
+            transparent: true,
+            opacity: 1
+          });
+        } else {
+          material = child.material.clone ? child.material.clone() : new THREE.MeshStandardMaterial();
+          material.metalness = 0.9;
+          material.roughness = roughnessOverride ?? this.getFinishRoughness();
+          material.clearcoat = 0.35;
+          material.clearcoatRoughness = this.currentFinish === 'Matte' ? 0.7 : 0.1;
+        }
+
+        material.needsUpdate = true;
+        child.material = material;
+      }
+
+      loadGLTFModel() {
+        const modelPath = this.getCurrentModelPath();
+        if (!modelPath) return;
+
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) loadingOverlay.style.display = 'flex';
+
+        if (this.modelCache.has(modelPath)) {
+          this.displayModel(this.modelCache.get(modelPath));
+          return;
+        }
+
+        const loader = new THREE.GLTFLoader();
+        const dracoLoader = new THREE.DRACOLoader();
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.1/');
+        loader.setDRACOLoader(dracoLoader);
+
+        loader.load(
+          modelPath,
+          (gltf) => {
+            this.modelCache.set(modelPath, gltf.scene);
+            this.displayModel(gltf.scene);
+          },
+          () => {},
+          (error) => {
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+            console.error('Model load error:', error);
+          }
+        );
+      }
+
+      displayModel(sceneObject) {
+        if (this.productMesh && this.scene) {
+          this.scene.remove(this.productMesh);
+        }
+
+        this.productMesh = sceneObject.clone();
+        this.productMesh.scale.set(this.config.modelScale, this.config.modelScale, this.config.modelScale);
+
+        this.productMesh.traverse((child) => {
+          if (child.isMesh) {
+            this.applyMaterialSettings(child, this.getFinishRoughness());
+          }
+        });
+
+        const bbox = new THREE.Box3().setFromObject(this.productMesh);
+        const size = bbox.getSize(new THREE.Vector3());
+        const center = bbox.getCenter(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+
+        this.productMesh.position.sub(center);
+
+        this.camera.position.z = maxDim * 1.2;
+        this.camera.near = maxDim * 0.01;
+        this.camera.far = maxDim * 100;
+        this.camera.updateProjectionMatrix();
+
+        this.scene.add(this.productMesh);
+        this.needsRender = true;
+        this.renderer.render(this.scene, this.camera);
+
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+      }
+
+      getCurrentModelPath() {
+        for (const variant of this.config.variants) {
+          const selectedOption = variant.options.find(opt => opt.name === this.currentSelections.variant[variant.category]);
+          if (selectedOption && selectedOption.modelPath) return selectedOption.modelPath;
+        }
+        return null;
+      }
+
+      animate() {
+        requestAnimationFrame(() => this.animate());
+        if (this.controls) {
+          if (this.productMesh) {
+            this.productMesh.rotation.y += this.autoRotateDirection * this.autoRotateSpeed;
+            if (this.productMesh.rotation.y > 0.35 || this.productMesh.rotation.y < -0.35) {
+              this.autoRotateDirection *= -1;
+            }
+          }
+          this.controls.update();
+        }
+        if (!this.needsRender) return;
+        this.renderer.render(this.scene, this.camera);
+        this.needsRender = false;
+      }
+
+      onWindowResize() {
+        const canvas = document.getElementById('canvas');
+        if (!canvas) return;
+        const width = canvas.parentElement.clientWidth;
+        const height = canvas.parentElement.clientHeight;
+        if (!this.camera || !this.renderer) return;
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(width, height);
+      }
+
+      renderConfigurator() {
+        const stoneVariant = this.config.variants.find(v => v.category === 'Stone Type');
+        makeOptions('stoneTypeConfig', stoneVariant, 'Stone Type', this.currentSelections, (cat, name) => {
+          this.selectVariant(cat, name);
+        });
+
+        const finishContainer = document.getElementById('ringFinishConfig');
+        const finishes = [
+          { name: 'High Polish', roughness: 0.05 },
+          { name: 'Satin', roughness: 0.3 },
+          { name: 'Matte', roughness: 0.6 }
+        ];
+        finishContainer.innerHTML = '';
+        finishes.forEach(finish => {
+          const btn = document.createElement('button');
+          btn.className = 'option-button' + (this.currentFinish === finish.name ? ' active' : '');
+          btn.textContent = finish.name;
+          btn.onclick = () => setFinish(finish.name, finish.roughness);
+          finishContainer.appendChild(btn);
+        });
+      }
+
+      selectVariant(category, optionName) {
+        this.currentSelections.variant[category] = optionName;
+        this.loadGLTFModel();
+        this.updatePrice();
+        this.renderConfigurator();
+        this.broadcastConfiguration();
+      }
+
+      calculatePrice() {
+        let price = this.config.basePrice;
+        this.config.variants.forEach(variant => {
+          const selectedOption = variant.options.find(opt => opt.name === this.currentSelections.variant[variant.category]);
+          if (selectedOption) price += selectedOption.priceAdjust;
+        });
+        return price;
+      }
+
+      updatePrice() {
+        const price = this.calculatePrice();
+        const priceLabel = document.querySelector('.options-panel .step-label');
+        if (priceLabel) {
+          priceLabel.textContent = `${this.config.name} · $${price.toFixed(2)}`;
+        }
+      }
+
+      broadcastConfiguration(type = 'WIDGET_CONFIGURATION_CHANGE') {
+        const payload = {
+          type,
+          currentSelections: this.currentSelections,
+          currentFinish: this.currentFinish,
+          price: this.calculatePrice(),
+          productName: this.config.name
+        };
+        window.parent.postMessage(payload, '*');
+      }
+    }
+
+    function setFinish(finishName, roughnessValue) {
+      if (!configurator) return;
+
+      configurator.currentFinish = finishName;
+      if (configurator.productMesh) {
+        configurator.productMesh.traverse(child => {
+          if (child.isMesh && child.material) {
+            configurator.applyMaterialSettings(child, roughnessValue);
+          }
+        });
+        configurator.needsRender = true;
+        if (configurator.renderer && configurator.scene && configurator.camera) {
+          configurator.renderer.render(configurator.scene, configurator.camera);
+        }
+      }
+      configurator.renderConfigurator();
+      configurator.broadcastConfiguration();
+    }
+
+    function handleAddToCart() {
+      if (!configurator) return;
+      configurator.broadcastConfiguration('WIDGET_ADD_TO_CART');
+    }
+
+    let configurator;
+    function initViewer() {
+      if (window.location.protocol === 'file:') {
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 9999;';
+        errorDiv.innerHTML = `
+          <div style="background: white; padding: 40px; border-radius: 12px; max-width: 500px; text-align: center; color: #111;">
+            <h2 style="margin-bottom: 16px; font-size: 24px;">Cannot Load Files</h2>
+            <p style="margin-bottom: 24px; color: #666; line-height: 1.6;">
+              Your browser is blocking access to 3D model files when opening this file locally (file:// protocol). <strong>You need to run a local server.</strong>
+            </p>
+            <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin-bottom: 24px; text-align: left; font-family: monospace; font-size: 13px;">
+              <p style="margin: 0 0 12px 0;"><strong>Quick Fix:</strong></p>
+              <p style="margin: 0 0 8px 0;">1. Double-click <code>start-server.bat</code> in the folder</p>
+              <p style="margin: 0 0 8px 0;">2. Wait for the server to start</p>
+              <p style="margin: 0;">3. Open <a href="http://localhost:8000" style="color: #0078d4;">http://localhost:8000</a></p>
+            </div>
+            <p style="color: #999; font-size: 12px;">
+              <strong>Alternative:</strong> Use this command in PowerShell from the folder:<br/>
+              <code style="background: #f5f5f5; padding: 4px 8px; border-radius: 4px;">python -m http.server 8000</code>
+            </p>
+          </div>
+        `;
+        document.body.innerHTML = '';
+        document.body.appendChild(errorDiv);
+        return;
+      }
+
+      configurator = new ProductConfigurator(PRODUCT_CONFIG);
+      configurator.setupScene();
+      configurator.loadGLTFModel();
+      configurator.init();
+      configurator.animate();
+    }
+
+    initViewer();
+  </script>
+</body>
+</html>
